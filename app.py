@@ -13,7 +13,9 @@ import pickle
 
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.SANDSTONE])
+
 server = app.server
+
 
 
 # Import datasets
@@ -30,6 +32,7 @@ fire_geo_data = fire_geo_data[fire_geo_data['len'] <= 250]
 # Prepare graph
 
 pred_data = pd.DataFrame(columns=['doy', 'pred'])
+lat_lon = pd.DataFrame(columns=['lat', 'lon'])
 
 severity = px.scatter(fire_geo_data,
            x="lon",
@@ -50,6 +53,12 @@ length = px.box(fire_geo_data,
            y="len",
            color="year",
            title="concentration of fire lengths by year")
+
+coord = px.scatter_geo(lat_lon,
+                       lat='lat',
+                       lon='lon',
+                       scope='usa',
+                       title='Selected Coordinates')
 
 pred = px.line(pred_data,
                x='doy',
@@ -125,18 +134,6 @@ lon_slider = html.Div(children=[html.P("Lon"),
     )
 ])
 
-len_slider = html.Div(children=[html.P("Length"),
-    dcc.Slider(
-        id='slider-len',
-        marks= {
-            min_len: str(min_len),
-            max_len: str(max_len)},
-        min=min_len,
-        max=max_len,
-        value=mean_len,
-        step=0.01
-    )
-])
 
 tavg_slider = html.Div(children=[html.P("Average Temp"),
     dcc.Slider(
@@ -203,15 +200,16 @@ wmax_slider = html.Div(children=[html.P("Max Wind"),
     )
 ])
 
-sliders = html.Div(children=[lat_slider, lon_slider, len_slider, tavg_slider,
+sliders = html.Div(children=[lat_slider, lon_slider, tavg_slider,
                              tmin_slider, tmax_slider, wavg_slider, wmax_slider], id='sliders-params')
 
 
 @app.callback(
     Output('pred-graph', 'figure'),
+    Output('coord-graph', 'figure'),
+    Output('info-container', 'children'),
     Input('slider-lat', 'value'),
     Input('slider-lon', 'value'),
-    Input('slider-len', 'value'),
     Input('slider-tavg', 'value'),
     Input('slider-tmin', 'value'),
     Input('slider-tmax', 'value'),
@@ -220,12 +218,12 @@ sliders = html.Div(children=[lat_slider, lon_slider, len_slider, tavg_slider,
 
 
 
-def update_figure(lat, lon, _len, tavg, tmin, tmax, wavg, wmax):
+def update_figure(lat, lon, tavg, tmin, tmax, wavg, wmax):
 
     data = []
 
     for i in range(1, 365, 7):
-        arr = [lat, lon, _len, tavg, tmin, tmax, wavg, wmax, i]
+        arr = [lat, lon, 1, tavg, tmin, tmax, wavg, wmax, i]
         
         row = model.predict([arr])[0] / 100
 
@@ -234,8 +232,9 @@ def update_figure(lat, lon, _len, tavg, tmin, tmax, wavg, wmax):
     pred_data = pd.DataFrame(data, columns=['doy', 'pred'])
 
     r = pred_data['pred'].max()
+    m = pred_data['pred'].mean()
 
-    pred_data['pred'] = pred_data['pred'].apply(lambda x: x/r)
+    pred_data['pred'] = pred_data['pred'].apply(lambda x: x/r * m)
 
     
     pred = px.line(pred_data,
@@ -243,26 +242,37 @@ def update_figure(lat, lon, _len, tavg, tmin, tmax, wavg, wmax):
                y='pred',
                title='Risk For Selected Area Over 1 Year')
 
-    pred.update_yaxes(range=[0, 1])
 
-    pred.update_layout(transition_duration=500)
+    pred.update_layout(transition_duration=750)
 
-    return pred
+    d = {}
+    d['lat'] = lat
+    d['lon'] = lon
+
+    loc = pd.DataFrame(d, index=[0])
+    coord = px.scatter_geo(loc,
+                           lat='lat',
+                           lon='lon',
+                           scope='usa',
+                           title='Selected Coordinates')
+
+    coord.update_layout(transition_duration=500)
+
+    info = html.Div([
+        html.P('lat: {}'.format(lat)), html.Div(),
+        html.P('lon: {}'.format(lon)), html.Div(),
+        html.P('average temp: {}'.format(tavg)), html.Div(),
+        html.P('low temp: {}'.format(tmin)), html.Div(),
+        html.P('high temp: {}'.format(tmax)), html.Div(),
+        html.P('average winds: {}'.format(wavg)), html.Div(),
+        html.P('max wind speed: {}'.format(wmax))
+        ])
 
 
 
-##def display_value(lat, lon, _len, tavg, tmin, tmax, wavg, wmax):
-##    
-##    return html.Div([
-##        html.P('lat: {}'.format(lat)), html.Div(),
-##        html.P('lon: {}'.format(lon)), html.Div(),
-##        html.P('length: {}'.format(_len)), html.Div(),
-##        html.P('average temp: {}'.format(tavg)), html.Div(),
-##        html.P('low temp: {}'.format(tmin)), html.Div(),
-##        html.P('high temp: {}'.format(tmax)), html.Div(),
-##        html.P('average winds: {}'.format(wavg)), html.Div(),
-##        html.P('max wind speed: {}'.format(wmax))
-##        ])
+    return pred, coord, info
+
+
 
 
 
@@ -282,6 +292,11 @@ temp = dcc.Graph(
 length = dcc.Graph(
     id='length',
     figure=length,
+    )
+
+coord = dcc.Graph(
+    id='coord-graph',
+    figure=coord
     )
 
 pred = dcc.Graph(
@@ -319,10 +334,10 @@ t_ml = dbc.Card(
                 [
                 dbc.Col(html.Div(children=[
                     sliders,
-                    #html.Div(id='info-container', style={'margin-top': 20}),
+                    html.Div(id='info-container', style={'margin-top': 20}),
                     ]), width=6),
 
-                dbc.Col(pred, width=6),
+                dbc.Col(html.Div(children=[pred, coord],), width=6),
                 ]
     )]),
             

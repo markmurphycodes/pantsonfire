@@ -350,4 +350,4 @@ tabs = dbc.Tabs(
 app.layout = html.Div(children=[header, tabs])
 
 if __name__ == "__main__":
-    app.run_server()
+    app.run_server(debug=True)

@@ -330,6 +330,7 @@ rows = html.Div(
 t_ml = dbc.Card(
     dbc.CardBody(
         [
+                   html.Div(html.P('Adjust these sliders and explore what the algorithms here have to offer! The graphs will adjust automatically as you change parameters.')),
             dbc.Row(
                 [
                 dbc.Col(html.Div(children=[
@@ -347,6 +348,7 @@ t_ml = dbc.Card(
 t_vis = dbc.Card(
     dbc.CardBody(
         [
+            html.Div(html.P('Enjoy the data here. Click around, explore, and have fun!')),
             rows
         ]
     ),
